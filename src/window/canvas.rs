@@ -1,10 +1,11 @@
 use crate::window::Window;
+use crate::camera::Camera;
 
 pub struct Canvas {
     bind_group: wgpu::BindGroup,
     pipeline: wgpu::RenderPipeline,
     unif_camera: wgpu::Buffer,
-    ratio: f32
+    camera: Camera
 }
 
 impl Window for Canvas {
@@ -87,7 +88,7 @@ impl Window for Canvas {
             alpha_to_coverage_enabled: false,
         });
 
-        Canvas {bind_group, pipeline, unif_camera, ratio}
+        Canvas {bind_group, pipeline, unif_camera, camera: Camera::new(ratio)}
     }
 
     fn update(&mut self, _event: winit::event::WindowEvent, device: &wgpu::Device) -> Option<wgpu::CommandBuffer> {
@@ -96,7 +97,7 @@ impl Window for Canvas {
                               0.0, 0.0, 1.0,   
 
                               0.0, 0.0, 0.0,
-                              self.ratio];
+                              self.camera.ratio];
 
         let temp_buf = device
             .create_buffer_mapped(cam.len(), wgpu::BufferUsage::COPY_SRC)
@@ -108,13 +109,13 @@ impl Window for Canvas {
     }
 
     fn resize(&mut self, sc_desc: &wgpu::SwapChainDescriptor, device: &wgpu::Device) -> Option<wgpu::CommandBuffer> {
-        self.ratio = sc_desc.width as f32/sc_desc.height as f32;
+        self.camera.ratio = sc_desc.width as f32/sc_desc.height as f32;
         let cam: [f32; 13] = [1.0, 0.0, 0.0,
                               0.0, 1.0, 0.0,
                               0.0, 0.0, 1.0,   
 
                               0.0, 0.0, 0.0,
-                              self.ratio];
+                              self.camera.ratio];
         //TODO change ascpect ratio
 
         let temp_buf = device

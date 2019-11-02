@@ -10,3 +10,4 @@ edition = "2018"
 winit = "0.20.0-alpha4"
 glsl-to-spirv = "0.1"
 wgpu = { git = "https://github.com/gfx-rs/wgpu-rs" }
+cgmath = "0.17.0"
