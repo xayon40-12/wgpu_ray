@@ -2,7 +2,7 @@ pub mod canvas;
 
 use winit::{
     event_loop::{ControlFlow, EventLoop},
-    event::{self,WindowEvent},
+    event::{self,Event,WindowEvent},
 };
 
 pub trait Window {
@@ -53,7 +53,7 @@ pub fn run<T: 'static + Window>() {
             ControlFlow::Poll
         };
         match event {
-            event::Event::WindowEvent {
+            Event::WindowEvent {
                 event: WindowEvent::Resized(size),
                 ..
             } => {
@@ -66,7 +66,17 @@ pub fn run<T: 'static + Window>() {
                     queue.submit(&[command_buf]);
                 }
             }
-            event::Event::WindowEvent { event, .. } => match event {
+            Event::WindowEvent { event, .. } => match event {
+                WindowEvent::Resized(size) => {
+                    let physical = size.to_physical(window.hidpi_factor());
+                    sc_desc.width = physical.width.round() as u32;
+                    sc_desc.height = physical.height.round() as u32;
+                    swap_chain = device.create_swap_chain(&surface, &sc_desc);
+                    let command_buf = win.resize(&sc_desc, &device);
+                    if let Some(command_buf) = command_buf {
+                        queue.submit(&[command_buf]);
+                    }
+                },
                 WindowEvent::KeyboardInput {
                     input:
                         event::KeyboardInput {
@@ -78,18 +88,18 @@ pub fn run<T: 'static + Window>() {
                 }
                 | WindowEvent::CloseRequested => {
                     *control_flow = ControlFlow::Exit;
-                }
+                },
+                WindowEvent::RedrawRequested => {
+                    let frame = swap_chain.get_next_texture();
+                    let command_buf = win.render(&frame, &device);
+                    queue.submit(&[command_buf]);
+                },
                 _ => {
                     let command_buf = win.update(event, &device);
                     if let Some(command_buf) = command_buf {
                         queue.submit(&[command_buf]);
                     }
                 }
-            },
-            event::Event::EventsCleared => {
-                let frame = swap_chain.get_next_texture();
-                let command_buf = win.render(&frame, &device);
-                queue.submit(&[command_buf]);
             },
             _ => ()
         }

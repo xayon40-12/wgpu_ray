@@ -1,5 +1,5 @@
 use square::window;
-use square::window::canvas::Canvas;
+use square::Canvas;
 
 fn main() {
     window::run::<Canvas>();

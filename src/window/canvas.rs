@@ -1,5 +1,7 @@
-use crate::window::Window;
-use crate::camera::Camera;
+use crate::Window;
+use crate::Camera;
+
+use winit::event::WindowEvent;
 
 pub struct Canvas {
     bind_group: wgpu::BindGroup,
@@ -91,40 +93,20 @@ impl Window for Canvas {
         Canvas {bind_group, pipeline, unif_camera, camera: Camera::new(ratio)}
     }
 
-    fn update(&mut self, _event: winit::event::WindowEvent, device: &wgpu::Device) -> Option<wgpu::CommandBuffer> {
-        let cam: [f32; 13] = [1.0, 0.0, 0.0,
-                              0.0, 1.0, 0.0,
-                              0.0, 0.0, 1.0,   
+    fn update(&mut self, event: WindowEvent, device: &wgpu::Device) -> Option<wgpu::CommandBuffer> {
+        match event {
+            WindowEvent::CursorMoved { position, ..} => {
+                let (_x,_y): (f64,f64) = position.into();
 
-                              0.0, 0.0, 0.0,
-                              self.camera.ratio];
-
-        let temp_buf = device
-            .create_buffer_mapped(cam.len(), wgpu::BufferUsage::COPY_SRC)
-            .fill_from_slice(&cam);
-
-        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { todo: 0 });
-        encoder.copy_buffer_to_buffer(&temp_buf, 0, &self.unif_camera, 0, 4*cam.len() as u64);
-        Some(encoder.finish())
+                self.update_cam(&device)
+            },
+            _ => None
+        }
     }
 
     fn resize(&mut self, sc_desc: &wgpu::SwapChainDescriptor, device: &wgpu::Device) -> Option<wgpu::CommandBuffer> {
         self.camera.ratio = sc_desc.width as f32/sc_desc.height as f32;
-        let cam: [f32; 13] = [1.0, 0.0, 0.0,
-                              0.0, 1.0, 0.0,
-                              0.0, 0.0, 1.0,   
-
-                              0.0, 0.0, 0.0,
-                              self.camera.ratio];
-        //TODO change ascpect ratio
-
-        let temp_buf = device
-            .create_buffer_mapped(cam.len(), wgpu::BufferUsage::COPY_SRC)
-            .fill_from_slice(&cam);
-
-        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { todo: 0 });
-        encoder.copy_buffer_to_buffer(&temp_buf, 0, &self.unif_camera, 0, 4*cam.len() as u64);
-        Some(encoder.finish())
+        self.update_cam(&device)
     }
 
     fn render(&mut self, frame: &wgpu::SwapChainOutput, device: &wgpu::Device) -> wgpu::CommandBuffer {
@@ -146,5 +128,24 @@ impl Window for Canvas {
         }
 
         encoder.finish()
+    }
+}
+
+impl Canvas {
+    fn update_cam(&mut self, device: &wgpu::Device) -> Option<wgpu::CommandBuffer> {
+        let cam: [f32; 13] = [1.0, 0.0, 0.0,
+                              0.0, 1.0, 0.0,
+                              0.0, 0.0, 1.0,   
+
+                              0.0, 0.0, 0.0,
+                              self.camera.ratio];
+
+        let temp_buf = device
+            .create_buffer_mapped(cam.len(), wgpu::BufferUsage::COPY_SRC)
+            .fill_from_slice(&cam);
+
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { todo: 0 });
+        encoder.copy_buffer_to_buffer(&temp_buf, 0, &self.unif_camera, 0, 4*cam.len() as u64);
+        Some(encoder.finish())
     }
 }
