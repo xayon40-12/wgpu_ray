@@ -2,12 +2,12 @@ pub mod canvas;
 
 use winit::{
     event_loop::{ControlFlow, EventLoop},
-    event::{self,Event,WindowEvent},
+    event::{self,Event,WindowEvent,DeviceEvent},
 };
 
 pub trait Window {
     fn new(sc_desc: &wgpu::SwapChainDescriptor, device: &wgpu::Device) -> Self;
-    fn update(&mut self, event: winit::event::WindowEvent, device: &wgpu::Device) -> Option<wgpu::CommandBuffer>;
+    fn update(&mut self, event: DeviceEvent, device: &wgpu::Device) -> Option<wgpu::CommandBuffer>;
     fn resize(&mut self, sc_desc: &wgpu::SwapChainDescriptor, device: &wgpu::Device) -> Option<wgpu::CommandBuffer>;
     fn render(&mut self, frame: &wgpu::SwapChainOutput, device: &wgpu::Device) -> wgpu::CommandBuffer;
 }
@@ -17,6 +17,9 @@ pub fn run<T: 'static + Window>() {
 
     let (window, size, surface) = {
         let window = winit::window::Window::new(&events_loop).unwrap();
+        window.set_cursor_grab(true).expect("Could not grab cursor");
+        window.set_cursor_visible(false);
+        //window.set_fullscreen(Some(winit::window::Fullscreen::Borderless(window.current_monitor())));
         let size = window.inner_size().to_physical(window.hidpi_factor());
         let surface = wgpu::Surface::create(&window);
 
@@ -53,19 +56,6 @@ pub fn run<T: 'static + Window>() {
             ControlFlow::Poll
         };
         match event {
-            Event::WindowEvent {
-                event: WindowEvent::Resized(size),
-                ..
-            } => {
-                let physical = size.to_physical(window.hidpi_factor());
-                sc_desc.width = physical.width.round() as u32;
-                sc_desc.height = physical.height.round() as u32;
-                swap_chain = device.create_swap_chain(&surface, &sc_desc);
-                let command_buf = win.resize(&sc_desc, &device);
-                if let Some(command_buf) = command_buf {
-                    queue.submit(&[command_buf]);
-                }
-            }
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::Resized(size) => {
                     let physical = size.to_physical(window.hidpi_factor());
@@ -75,6 +65,7 @@ pub fn run<T: 'static + Window>() {
                     let command_buf = win.resize(&sc_desc, &device);
                     if let Some(command_buf) = command_buf {
                         queue.submit(&[command_buf]);
+                        window.request_redraw();
                     }
                 },
                 WindowEvent::KeyboardInput {
@@ -94,13 +85,15 @@ pub fn run<T: 'static + Window>() {
                     let command_buf = win.render(&frame, &device);
                     queue.submit(&[command_buf]);
                 },
-                _ => {
-                    let command_buf = win.update(event, &device);
-                    if let Some(command_buf) = command_buf {
-                        queue.submit(&[command_buf]);
-                    }
-                }
+                _ => {}
             },
+            Event::DeviceEvent { event, .. } => {
+                let command_buf = win.update(event, &device);
+                if let Some(command_buf) = command_buf {
+                    queue.submit(&[command_buf]);
+                    window.request_redraw();
+                }
+            }
             _ => ()
         }
     });
