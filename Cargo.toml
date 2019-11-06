@@ -9,5 +9,5 @@ edition = "2018"
 [dependencies]
 winit = "0.20.0-alpha4"
 glsl-to-spirv = "0.1"
-wgpu = { git = "https://github.com/gfx-rs/wgpu-rs" }
+wgpu = "0.4.0"
 cgmath = "0.17.0"
