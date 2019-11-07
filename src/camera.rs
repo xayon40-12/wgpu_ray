@@ -33,7 +33,7 @@ impl Camera {
     pub fn rotate<A: Into<Rad<f32>>>(&mut self, rx: A, ry: A) {
         let rot_unit_y = Matrix3::from_angle_y(ry);
         let rot_x = Matrix3::from_axis_angle(self.rot.row(0),rx);
-        self.rot = self.rot*rot_x.transpose()*rot_unit_y.transpose();
+        self.rot = self.rot*rot_x*rot_unit_y;
     }
 
     pub fn as_float_array(&self) -> Vec<f32> {
