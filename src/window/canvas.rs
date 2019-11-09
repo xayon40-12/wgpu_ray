@@ -4,15 +4,20 @@ use crate::Camera;
 use winit::event::DeviceEvent;
 use cgmath::Deg;
 
-pub struct Canvas {
+pub mod content;
+use content::Content;
+
+pub struct Canvas<T: 'static + Content> {
     bind_group: wgpu::BindGroup,
     pipeline: wgpu::RenderPipeline,
     unif_camera: wgpu::Buffer,
-    camera: Camera
+    camera: Camera,
+    content: T
 }
 
-impl Window for Canvas {
-    fn new(sc_desc: &wgpu::SwapChainDescriptor, device: &wgpu::Device) -> Canvas {
+impl<T: 'static + Content> Window for Canvas<T> {
+    fn new(sc_desc: &wgpu::SwapChainDescriptor, device: &wgpu::Device) -> Canvas<T> {
+        let content = T::new();
 
         let vs = include_str!("shader.vert"); 
         let fs = include_str!("shader.frag");
@@ -86,18 +91,15 @@ impl Window for Canvas {
             alpha_to_coverage_enabled: false,
         });
 
-        Canvas {bind_group, pipeline, unif_camera, camera}
+        Canvas {bind_group, pipeline, unif_camera, camera, content}
     }
 
     fn update(&mut self, event: DeviceEvent, device: &wgpu::Device) -> Option<wgpu::CommandBuffer> {
-        match event {
-            DeviceEvent::MouseMotion { delta, ..} => {
-                let (x,y): (f64,f64) = delta.into();
-                self.camera.rotate(Deg(y as f32), Deg(x as f32));
-                Some(self.update_cam(&device))
-            },
-            _ => None
-        }
+        if self.content.update_camera(&event, &mut self.camera) {
+            Some(self.update_cam(&device))
+        } else {
+            self.content.update(&event, &device)
+        }    
     }
 
     fn resize(&mut self, sc_desc: &wgpu::SwapChainDescriptor, device: &wgpu::Device) -> Option<wgpu::CommandBuffer> {
@@ -127,7 +129,7 @@ impl Window for Canvas {
     }
 }
 
-impl Canvas {
+impl<T: 'static + Content> Canvas<T> {
     fn update_cam(&mut self, device: &wgpu::Device) -> wgpu::CommandBuffer {
         let cam = self.camera.as_float_array();
 
