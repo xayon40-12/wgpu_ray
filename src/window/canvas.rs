@@ -1,7 +1,7 @@
 use crate::Window;
 use crate::Camera;
 
-use winit::event::DeviceEvent;
+use winit::event::Event;
 use cgmath::Deg;
 
 pub mod content;
@@ -12,7 +12,7 @@ pub struct Canvas<T: 'static + Content> {
     pipeline: wgpu::RenderPipeline,
     unif_camera: wgpu::Buffer,
     camera: Camera,
-    content: T
+    content: T,
 }
 
 impl<T: 'static + Content> Window for Canvas<T> {
@@ -25,16 +25,26 @@ impl<T: 'static + Content> Window for Canvas<T> {
         let vs_module = device.create_shader_module(&wgpu::read_spirv(glsl_to_spirv::compile(&vs, glsl_to_spirv::ShaderType::Vertex).unwrap()).unwrap());
         let fs_module = device.create_shader_module(&wgpu::read_spirv(glsl_to_spirv::compile(&fs, glsl_to_spirv::ShaderType::Fragment).unwrap()).unwrap());
 
-        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            bindings: &[
-                wgpu::BindGroupLayoutBinding {
-                    binding: 0,
-                    visibility: wgpu::ShaderStage::FRAGMENT,
-                    ty: wgpu::BindingType::UniformBuffer {
-                        dynamic: false,
-                    },
+        let mut layout_bindings = Vec::new();
+        layout_bindings.push(
+            wgpu::BindGroupLayoutBinding {
+                binding: 0,
+                visibility: wgpu::ShaderStage::FRAGMENT,
+                ty: wgpu::BindingType::UniformBuffer {
+                    dynamic: false,
                 },
-            ],
+            }
+        );
+        content.layout_bindings().iter().enumerate().for_each(|(i,e)| { layout_bindings.push(
+            wgpu::BindGroupLayoutBinding {
+                binding: 1+i as u32,
+                visibility: wgpu::ShaderStage::FRAGMENT,
+                ty: e.clone()
+            }
+        )});
+
+        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            bindings: &layout_bindings,
         });
 
         
@@ -43,17 +53,26 @@ impl<T: 'static + Content> Window for Canvas<T> {
         let cam = camera.as_float_array();
         let unif_camera = device.create_buffer_mapped(cam.len(), wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST).fill_from_slice(&cam);
 
+        let mut bindings = Vec::new();
+        bindings.push(
+            wgpu::Binding {
+                binding: 0,
+                resource: wgpu::BindingResource::Buffer {
+                    buffer: &unif_camera,
+                    range: 0 .. 4*cam.len() as u64,
+                },
+            }
+        );
+        content.bindings().iter().enumerate().for_each(|(i,e)| { bindings.push(
+            wgpu::Binding {
+                binding: 1+i as u32,
+                resource: e.clone()
+            }
+        )});
+
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &bind_group_layout,
-            bindings: &[
-                wgpu::Binding {
-                    binding: 0,
-                    resource: wgpu::BindingResource::Buffer {
-                        buffer: &unif_camera,
-                        range: 0 .. 4*cam.len() as u64,
-                    },
-                },
-            ],
+            bindings: &bindings,
         });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             bind_group_layouts: &[&bind_group_layout],
@@ -94,12 +113,14 @@ impl<T: 'static + Content> Window for Canvas<T> {
         Canvas {bind_group, pipeline, unif_camera, camera, content}
     }
 
-    fn update(&mut self, event: DeviceEvent, device: &wgpu::Device) -> Option<wgpu::CommandBuffer> {
+    fn update(&mut self, event: Event<()>, device: &wgpu::Device) -> Vec<wgpu::CommandBuffer> {
+        let mut command_bufs = Vec::new();
         if self.content.update_camera(&event, &mut self.camera) {
-            Some(self.update_cam(&device))
-        } else {
-            self.content.update(&event, &device)
-        }    
+            command_bufs.push(self.update_cam(&device));
+        }
+        command_bufs.append(&mut self.content.update(&event, &device));
+
+        command_bufs
     }
 
     fn resize(&mut self, sc_desc: &wgpu::SwapChainDescriptor, device: &wgpu::Device) -> Option<wgpu::CommandBuffer> {

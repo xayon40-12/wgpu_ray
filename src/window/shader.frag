@@ -12,6 +12,7 @@ layout(set = 0, binding = 0) uniform Locals {
 };
 
 vec3 ray_trace(vec3 dir, vec3 pos) {
+    return (dir+1)/2;
     if (distance(dir.xy,coord) < 0.01) 
         return vec3(1.0, 0.0, 0.0);
     else

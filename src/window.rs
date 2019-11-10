@@ -2,12 +2,12 @@ pub mod canvas;
 
 use winit::{
     event_loop::{ControlFlow, EventLoop},
-    event::{self,Event,WindowEvent,DeviceEvent},
+    event::{self,Event,WindowEvent},
 };
 
 pub trait Window {
     fn new(sc_desc: &wgpu::SwapChainDescriptor, device: &wgpu::Device) -> Self;
-    fn update(&mut self, event: DeviceEvent, device: &wgpu::Device) -> Option<wgpu::CommandBuffer>;
+    fn update(&mut self, event: Event<()>, device: &wgpu::Device) -> Vec<wgpu::CommandBuffer>;
     fn resize(&mut self, sc_desc: &wgpu::SwapChainDescriptor, device: &wgpu::Device) -> Option<wgpu::CommandBuffer>;
     fn render(&mut self, frame: &wgpu::SwapChainOutput, device: &wgpu::Device) -> wgpu::CommandBuffer;
 }
@@ -49,13 +49,13 @@ pub fn run<T: 'static + Window>() {
     
     let mut win = T::new(&sc_desc, &device);
 
-    events_loop.run(move |event, _, control_flow| {
+    events_loop.run(move |events, _, control_flow| {
         *control_flow = if cfg!(feature = "metal-auto-capture") {
             ControlFlow::Exit
         } else {
             ControlFlow::Poll
         };
-        match event {
+        match &events {
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::Resized(size) => {
                     let physical = size.to_physical(window.hidpi_factor());
@@ -87,14 +87,12 @@ pub fn run<T: 'static + Window>() {
                 },
                 _ => {}
             },
-            Event::DeviceEvent { event, .. } => {
-                let command_buf = win.update(event, &device);
-                if let Some(command_buf) = command_buf {
-                    queue.submit(&[command_buf]);
-                    window.request_redraw();
-                }
-            }
-            _ => ()
+            _ => {}
+        }
+        let command_bufs = win.update(events, &device);
+        if command_bufs.len() > 0 {
+            queue.submit(&command_bufs);
+            window.request_redraw();
         }
     });
 }
